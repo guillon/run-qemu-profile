@@ -1,0 +1,117 @@
+Summary
+=======
+
+Provides a simple script run-qemu-profile.sh for assembly level profiling.
+
+The script annotates a disassembly with operation counts.
+
+It uses the plugin enabled version of QEMU (actually the oprofile plugin)
+and objdump to merge disassembly with profile information.
+
+You may find a QEMU plugin enabled version here: https://github.com/cedric-vincent/QEMU.
+More information on how to build QEMU with plugins enabled is given in the
+QEMU Installation section below.
+
+
+Usage
+=====
+
+It is running in native mode by default with::
+
+    $ run-qemu-profile.sh program args...
+
+For running in cross execution mode, redefine QEMU and OBJDUMP env. vars as in::
+
+    $ env QEMU=qemu-arm OBJDUMP=arm-objdump run-qemu-profile.sh arm_program args...
+
+For an example, run the makefile with::
+
+    $ make run-profile
+    ...
+    400610 <loop>:
+          1 ##  400610:	31 c0			xor    %eax,%eax
+          1 ##  400612:	85 c9                	test   %ecx,%ecx
+          1 ##  400614:	7e 38                	jle    40064e <loop+0x3e>
+          1 ##  400616:	45 31 c0             	xor    %r8d,%r8d
+          1 ##  400619:	eb 19                	jmp    400634 <loop+0x24>
+            ##  40061b:	0f 1f 44 00 00       	nopl   0x0(%rax,%rax,1)
+     500000 ##  400620:	46 03 0c 82          	add    (%rdx,%r8,4),%r9d
+     500000 ##  400624:	46 89 0c 87          	mov    %r9d,(%rdi,%r8,4)
+     500000 ##  400628:	49 83 c0 01          	add    $0x1,%r8
+     500000 ##  40062c:	44 01 c8             	add    %r9d,%eax
+     500000 ##  40062f:	44 39 c1             	cmp    %r8d,%ecx
+     500000 ##  400632:	7e 1a                	jle    40064e <loop+0x3e>
+    1000000 ##  400634:	41 f6 c0 01          	test   $0x1,%r8b
+    1000000 ##  400638:	46 8b 0c 86          	mov    (%rsi,%r8,4),%r9d
+    1000000 ##  40063c:	74 e2                	je     400620 <loop+0x10>
+     500000 ##  40063e:	46 89 0c 87          	mov    %r9d,(%rdi,%r8,4)
+     500000 ##  400642:	49 83 c0 01          	add    $0x1,%r8
+     500000 ##  400646:	44 01 c8             	add    %r9d,%eax
+     500000 ##  400649:	44 39 c1             	cmp    %r8d,%ecx
+     500000 ##  40064c:	7f e6                	jg     400634 <loop+0x24>
+          1 ##  40064e:	f3 c3                	repz retq 
+
+As shown above, the scripts outputs on stdout an annotated disassembly with
+instruction execution count information. For instance the jump "jg 400634"
+at PC 40064c is executed 500000 times. Search for the "##" marker in order to
+isolate actually executed functions and instructions in the disassembly stream.
+
+
+Installation
+============
+
+One may install the scripts locally (in $HOME/local/bin) with::
+
+    $ make PREFIX=$HOME/local install
+
+Or for system level installation (in /usr/local)::
+
+    $ sudo make install
+
+Note that this will install in the corresponding bin directory the
+three executables run-qemu-profile.sh, run-qemu.sh and merge-profile.sh.
+
+
+QEMU w/ Plugins Installation
+============================
+
+If one does not have a QEMU plugin enabled QEMU, install QEMU user-mode
+with the following steps::
+
+    $ wget https://github.com/cedric-vincent/qemu/archive/master.zip -O qemu-master.zip 
+    $ unzip qemu-master.zip
+    $ cd qemu-master
+    # Note that the following will enable build for all targets, add
+    # --target-list=x86_64-linux-user for instance to build only for x86_64
+    $ ./configure --enable-tcg-plugin --disable-system --prefix=$HOME/local
+    $ make all
+    $ make install
+
+Verify that you have the oprofile plugin working correctly for instance with:
+
+    $ qemu-x86_64 -tcg-plugin oprofile /bin/ls 2>oprofile.out
+    $ head oprofile.out
+    ...
+    vma              samples   %       linenr_info                    image_name    symbol_name
+    000000400080a150 88278     11.0150 (no localization information)  ld-2.14.1.so  do_lookup_x
+    ...
+
+
+Limitations
+===========
+
+This tool is itself limited by the QEMU user mode limitations, in particular
+expect a run time of at least x10 times slower as your program will actually
+be simulated and the oprofile plugin will add some additional overhead.
+Also, QEMU user mode does not simulate correctly some multi threaded programs.
+
+The scripts will annotate only the main executable in the current version.
+The oprofile plugin handles shared libraries, but more work is necessary in
+the run-qemu-profile scripts in order to map the plugin output to the
+disassembly of the executable and the loaded shared libraries.
+
+
+Support
+=======
+
+Ref to AUTHORS file for support.
