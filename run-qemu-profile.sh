@@ -38,9 +38,8 @@
 # Usage: run-qemu-profile.sh program args...
 #
 
-set -e
-
 [ "$DEBUG" = "" ] || set -x
+set -e
 
 error() { echo "$0: error: $1" >&2; exit 1; }
 
@@ -72,6 +71,8 @@ QEMU_ARGS="${QEMU_ARGS}"
 OBJDUMP=${OBJDUMP-objdump}
 DUMPFILE=`basename ${EXE}`.dump
 PROFILE=oprofile.out
+QEMU_PATH=`type -P ${QEMU}`
+OPROFILE_PLUGIN=`dirname ${QEMU_PATH}`/../libexec/tcg-plugin-oprofile.so
 
 has_qemu=`${QEMU} -h 2>/dev/null | wc -l`
 [ "$has_qemu" != 0 ] || error "QEMU not found or not executable: $QEMU. Download from https://github.com/cedric-vincent/QEMU."
@@ -81,11 +82,10 @@ has_plugin=`${QEMU} -h 2>/dev/null | grep tcg-plugin | wc -l`
 
 trap "cleanup" EXIT INT TERM QUIT
 
-${OBJDUMP} -d ${EXE} >${EXE}.dump || error "can't run objdump correctly: ${OBJDUMP} -d ${EXE}"
+${OBJDUMP} -d ${EXE} >${DUMPFILE} || error "can't run objdump correctly: ${OBJDUMP} -d ${EXE}"
 
 rm -f ${PROFILE}.*
-env TPI_OUTPUT=${PROFILE} ${QEMU} -singlestep -tcg-plugin oprofile ${QEMU_ARGS} ${1+"$@"} || true
+env TPI_OUTPUT=${PROFILE} ${QEMU} -singlestep -tcg-plugin ${OPROFILE_PLUGIN} ${QEMU_ARGS} ${1+"$@"} || true
 mv ${PROFILE}.* ${PROFILE}
 
 ${PERL} `dirname $0`/merge-profile.pl ${PROFILE} ${DUMPFILE}
-
